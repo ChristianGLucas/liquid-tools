@@ -6,15 +6,77 @@ nodes:
     - name: Render
       input: LiquidRenderRequest
       output: LiquidRenderResult
+      description: >-
+        Renders a Liquid template (Shopify/Jekyll-style {{ variables }},
+        {% tags %}, filters, loops, conditionals) against a JSON data
+        context and returns the rendered text. Uses Liquid's own default
+        ("lax") semantics: an undefined variable renders as empty text and
+        an undefined filter is a no-op passthrough of its input — use
+        RenderStrict to error on either instead. {% include %}/{% render %}
+        resolve a name ONLY from this request's own partials map — never
+        the filesystem or a URL — so an unresolved name is a structured
+        render_error, not a leak of anything outside the request.
+        Rendering is bounded (parse size, render time, memory, and total
+        node count), so a pathological template such as
+        {% for i in (1..100000000000) %} fails fast with a structured
+        limit_exceeded error instead of hanging or exhausting memory.
+        Deterministic: the same template + data_json + partials always
+        renders the same output.
     - name: RenderStrict
       input: LiquidRenderRequest
       output: LiquidRenderResult
+      description: >-
+        Renders exactly like Render, except ANY reference to a variable
+        with no matching key anywhere in data_json — a bare
+        {{ variable }} interpolation, or one used in an
+        {% if %}/{% for %}/other tag condition — is a structured
+        "undefined" error instead of silently treating it as empty/falsy,
+        and any | filter name that isn't a recognized built-in filter is a
+        structured "parse_error" instead of a silent no-op passthrough.
+        Useful for catching a typo'd variable or filter name (e.g.
+        {{ user.naem }}) that Render would otherwise mask. Same sandboxed
+        partials resolution and parse/render/memory/output bounds as
+        Render.
     - name: RenderInLayout
       input: LiquidRenderInLayoutRequest
       output: LiquidRenderResult
+      description: >-
+        Renders content_template inside a named layout using standard
+        Liquid layout/block composition: layout_name must be a key in
+        partials whose value is the layout template, which defines the
+        page shell with {% block <name> %}default{% endblock %} slots;
+        content_template fills them with matching
+        {% block <name> %}...{% endblock %} overrides. Any part of
+        content_template outside a {% block %} is ignored once a layout
+        applies — standard Liquid semantics. Both templates share the same
+        partials map, so a layout can itself {% include %} another
+        supplied partial. Same sandboxed resolution (never the filesystem
+        or a URL) and parse/render/memory/output bounds as Render.
     - name: ExtractVariables
       input: LiquidTemplateRequest
       output: LiquidVariablesResult
+      description: >-
+        Statically analyzes a Liquid template WITHOUT rendering it or
+        requiring any data: every variable path it reads (variables —
+        includes loop/assign-scoped names), the subset actually resolved
+        from OUTSIDE the template (globals — exactly what a caller must
+        supply in Render's data_json), names the template introduces
+        itself via {% assign %}/{% capture %} (locals), the distinct tag
+        names used (e.g. "if", "for"), and the distinct filter names used
+        (e.g. "upcase", "truncate"). ok is false and every list is empty
+        if the template does not parse as valid Liquid — use
+        ValidateTemplate for just the parse check. No network/filesystem
+        access: {% include %}/{% render %}/{% layout %} names are
+        inventoried as ordinary tag usage, never resolved.
     - name: ValidateTemplate
       input: LiquidTemplateRequest
       output: LiquidValidateResult
+      description: >-
+        Checks whether a string is syntactically valid Liquid, without
+        rendering it or requiring any data context. valid is true iff
+        template parses cleanly; otherwise error (kind "parse_error")
+        carries the 1-based line/col of the first syntax problem — e.g. an
+        unclosed {% if %}, a malformed filter expression, or an unknown
+        tag name. No network/filesystem access: {% include %}/
+        {% render %}/{% layout %} names are only checked for syntactic
+        well-formedness, never resolved.
