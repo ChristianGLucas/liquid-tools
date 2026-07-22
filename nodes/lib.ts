@@ -28,28 +28,45 @@ export class InputError extends Error {}
 export class BoundsError extends Error {}
 
 // Defense-in-depth ceilings on every caller-controlled input dimension.
-// The deployed Axiom ingress caps a request body at roughly 1 MiB; these
-// keep template + data + partials comfortably under that with room for the
-// rendered output response, while being far larger than any realistic
-// template/context.
-export const MAX_TEMPLATE_BYTES = 256 * 1024; // 256 KiB
-export const MAX_DATA_JSON_BYTES = 256 * 1024; // 256 KiB
-export const MAX_PARTIAL_BYTES = 128 * 1024; // 128 KiB per partial
+//
+// The deployed Axiom platform accepts up to a 16 MiB invoke payload (17 MiB
+// request body; nginx ingress allows 64 MiB; the internal gRPC hop allows
+// 24 MiB) — these are text bounds (no base64 inflation) sized so that a
+// single request's worst case — template + data_json + the total of all
+// partials — stays comfortably under that 16 MiB ceiling with several MiB of
+// headroom for JSON/protobuf framing, and so the rendered output that comes
+// back in the response independently stays under it too.
+//   MAX_TEMPLATE_BYTES + MAX_DATA_JSON_BYTES + MAX_PARTIALS_TOTAL_BYTES
+//     = 2 + 8 + 2 = 12 MiB of worst-case request body, vs. a 16 MiB cap.
+//   MAX_OUTPUT_BYTES = 12 MiB of worst-case response body, vs. the same cap.
+// (Earlier revisions of this package capped MAX_OUTPUT_BYTES at 640 KiB as a
+// workaround for a since-fixed platform ingress bug that silently truncated
+// invokes at ~1 MiB; that workaround is gone as of 0.1.1 — see git history.)
+export const MAX_TEMPLATE_BYTES = 2 * 1024 * 1024; // 2 MiB
+export const MAX_DATA_JSON_BYTES = 8 * 1024 * 1024; // 8 MiB
+export const MAX_PARTIAL_BYTES = 1 * 1024 * 1024; // 1 MiB per partial
 export const MAX_PARTIALS_COUNT = 64;
-export const MAX_OUTPUT_BYTES = 640 * 1024; // 640 KiB safe ceiling under the ~1 MiB ingress cap
+export const MAX_PARTIALS_TOTAL_BYTES = 2 * 1024 * 1024; // 2 MiB across all partials combined
+export const MAX_OUTPUT_BYTES = 12 * 1024 * 1024; // 12 MiB
 export const MAX_DATA_CONTEXTS = 1; // reserved (single-context render nodes only, see retrospective)
 
-// LiquidJS's own DoS-handling engine options (see liquid-options.d.ts):
+// LiquidJS's own DoS-handling engine options (see liquid-options.d.ts),
+// scaled up alongside the byte ceilings above so a template/context that
+// legitimately uses the new larger budgets doesn't get cut off by an engine
+// guard sized for the old ~1 MiB-ingress era. LiquidJS's own docs describe
+// "a typical PC" as comfortably handling 1e8 parseLimit chars, 1e9
+// memoryLimit bytes, and ~1e5 templateLimit renders/sec — every value below
+// stays at least one order of magnitude under those references.
 // parseLimit bounds total characters parsed, renderLimit bounds wall-clock
 // render time (ms), memoryLimit bounds new-object/string allocation during
 // render, templateLimit (a render() call option) bounds the total number of
 // tag/HTML/output nodes rendered — this is what actually stops a
 // `{% for i in (1..100000000000) %}` bomb, since that loop's bound lives in
 // the template text itself, not in any caller-supplied data size.
-export const PARSE_LIMIT_CHARS = 300_000;
-export const RENDER_LIMIT_MS = 4_000;
-export const MEMORY_LIMIT_BYTES = 8_000_000;
-export const TEMPLATE_RENDER_LIMIT = 50_000;
+export const PARSE_LIMIT_CHARS = 6_000_000;
+export const RENDER_LIMIT_MS = 8_000;
+export const MEMORY_LIMIT_BYTES = 64_000_000;
+export const TEMPLATE_RENDER_LIMIT = 500_000;
 
 export function byteLen(s: string): number {
   return Buffer.byteLength(s, 'utf8');
@@ -79,8 +96,8 @@ export function partialsToObject(
     }
     checkBytes(value, `partials["${key}"]`, MAX_PARTIAL_BYTES);
     totalBytes += byteLen(value);
-    if (totalBytes > MAX_OUTPUT_BYTES) {
-      throw new BoundsError(`partials total size exceeds ${MAX_OUTPUT_BYTES} bytes`);
+    if (totalBytes > MAX_PARTIALS_TOTAL_BYTES) {
+      throw new BoundsError(`partials total size exceeds ${MAX_PARTIALS_TOTAL_BYTES} bytes`);
     }
     out[key] = value;
   });
@@ -256,7 +273,7 @@ interface WalkNode {
   value?: { filters?: { name?: string }[] };
 }
 
-const MAX_WALK_NODES = 20_000; // matches the render-side TEMPLATE_RENDER_LIMIT order of magnitude
+const MAX_WALK_NODES = 200_000; // matches the render-side TEMPLATE_RENDER_LIMIT order of magnitude
 
 /** Collects the distinct tag names and filter names referenced anywhere in
  * an already-parsed template (see `engine.parse()`). Bounded by
@@ -300,8 +317,8 @@ export function walkTagsAndFilters(nodes: WalkNode[]): { tags: string[]; filters
 /** Final output-size guard, applied AFTER render. `memoryLimit`/`renderLimit`
  * bound cost during rendering, but a legitimate-looking small template can
  * still expand to a large-but-not-pathological output (e.g. a big loop over
- * a big but allowed data_json) — reject deterministically rather than ship a
- * response likely to be truncated by the deployed ingress. */
+ * a big but allowed data_json) — reject deterministically with a structured
+ * error rather than ship a response over the platform's response-body cap. */
 export function checkOutputBytes(output: string): void {
   const n = byteLen(output);
   if (n > MAX_OUTPUT_BYTES) {
