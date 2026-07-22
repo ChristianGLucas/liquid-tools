@@ -1,0 +1,20 @@
+name: christiangeorgelucas/liquid-tools
+version: 0.1.0
+language: typescript
+description: Composable Axiom nodes for Liquid (Shopify/Jekyll-style) template rendering, wrapping LiquidJS (MIT)
+nodes:
+    - name: Render
+      input: LiquidRenderRequest
+      output: LiquidRenderResult
+    - name: RenderStrict
+      input: LiquidRenderRequest
+      output: LiquidRenderResult
+    - name: RenderInLayout
+      input: LiquidRenderInLayoutRequest
+      output: LiquidRenderResult
+    - name: ExtractVariables
+      input: LiquidTemplateRequest
+      output: LiquidVariablesResult
+    - name: ValidateTemplate
+      input: LiquidTemplateRequest
+      output: LiquidValidateResult

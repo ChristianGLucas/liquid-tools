@@ -1,0 +1,103 @@
+// This file defines the data contracts (messages) for your Axiom package.
+// Every node's --input and --output refers to a message defined here.
+//
+// Run `axiom create message <Name>` to scaffold a new message below.
+// Run `axiom generate` to compile these definitions into language bindings in gen/.
+//
+// DOCUMENTATION
+//   Comments written directly above a message or field declaration are extracted
+//   automatically at publish time and shown in the Axiom registry as documentation.
+//   Write your descriptions there — no separate doc files needed.
+//
+//   Leading comment  (no blank line before the declaration) → registry description ✓
+//   Detached comment (blank line before the declaration)    → ignored by registry  ✗
+//
+// This file is yours to edit. Axiom only appends new message blocks — it never
+// overwrites or removes content you have written.
+
+syntax = "proto3";
+
+package christiangeorgelucas.liquid_tools;
+
+// A single Liquid render error: what went wrong and where. `kind` is one of
+// "invalid_input" (oversized/malformed request), "parse_error" (template
+// syntax), "render_error" (evaluation failure, e.g. a caller-supplied
+// {% include %}/{% layout %} name with no matching partial), "undefined"
+// (strict mode found an undefined variable or filter), or "limit_exceeded"
+// (a bounded parse/render/output guard tripped). `line`/`col` are 1-based
+// and 0 when the error has no template position (e.g. invalid_input).
+message LiquidError {
+  string kind = 1;
+  string message = 2;
+  int32 line = 3;
+  int32 col = 4;
+}
+
+// Renders one Liquid template against one JSON data context. `partials` is
+// an optional name->template map consulted ONLY by {% include %}/{% render %}
+// and (via LiquidRenderInLayoutRequest) {% layout %}/{% block %} tags — it is
+// never resolved from the filesystem or a URL, so a template cannot read or
+// reach anything outside what the caller explicitly supplies here.
+message LiquidRenderRequest {
+  string template = 1;
+  string data_json = 2;
+  map<string, string> partials = 3;
+}
+
+// Result of a Render/RenderStrict/RenderInLayout call. Exactly one of
+// `output` (ok=true) or `error` (ok=false) is meaningful.
+message LiquidRenderResult {
+  bool ok = 1;
+  string output = 2;
+  LiquidError error = 3;
+}
+
+// Renders `content_template` inside a named layout. `layout_name` must be a
+// key in `partials` whose value is the layout template; the layout defines
+// the page shell with `{% block <name> %}default{% endblock %}` slots, and
+// `content_template` fills them with matching `{% block <name> %}...{% endblock %}`
+// overrides (standard Liquid layout/block semantics — https://liquidjs.com).
+message LiquidRenderInLayoutRequest {
+  string content_template = 1;
+  string layout_name = 2;
+  string data_json = 3;
+  map<string, string> partials = 4;
+}
+
+// A single reference to a variable inside a template: its dotted path
+// (`segments`, e.g. ["user","name"] for `{{ user.name }}`) and the 1-based
+// source position of that reference.
+message LiquidVariableRef {
+  repeated string segments = 1;
+  int32 line = 2;
+  int32 col = 3;
+}
+
+// A template to statically analyze — no data context or rendering involved.
+message LiquidTemplateRequest {
+  string template = 1;
+}
+
+// Static analysis of a template: every variable path it reads (`variables`,
+// includes loop/assign-scoped names), the subset resolved from outside the
+// template (`globals` — what a caller must supply in `data_json`), names
+// introduced inside the template itself by {% assign %}/{% capture %}/loop
+// variables (`locals`), the distinct tag names used (e.g. "if","for"), and
+// the distinct filter names used (e.g. "upcase","truncate"). Empty +
+// ok=false with `error` set if the template does not parse.
+message LiquidVariablesResult {
+  bool ok = 1;
+  repeated LiquidVariableRef variables = 2;
+  repeated LiquidVariableRef globals = 3;
+  repeated string locals = 4;
+  repeated string tags = 5;
+  repeated string filters = 6;
+  LiquidError error = 7;
+}
+
+// Result of ValidateTemplate: whether the template parses as valid Liquid
+// syntax. `error` is set (kind="parse_error") iff valid=false.
+message LiquidValidateResult {
+  bool valid = 1;
+  LiquidError error = 2;
+}
