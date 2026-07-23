@@ -1,6 +1,6 @@
 # liquid-tools
 
-Composable [Axiom](https://axiom.dev) nodes for [Liquid](https://shopify.github.io/liquid/) (Shopify/Jekyll-style) template rendering, wrapping [LiquidJS](https://liquidjs.com) (MIT).
+Composable [Axiom](https://axiomide.com) nodes for [Liquid](https://shopify.github.io/liquid/) (Shopify/Jekyll-style) template rendering, wrapping [LiquidJS](https://liquidjs.com) (MIT).
 
 Built for the Axiom marketplace (handle: `christiangeorgelucas`).
 
