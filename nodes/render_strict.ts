@@ -1,16 +1,6 @@
 import { LiquidRenderRequest, LiquidRenderResult } from '../gen/messages_pb';
 import { AxiomContext } from '../gen/axiomContext';
-import {
-  checkBytes,
-  parseDataJson,
-  partialsToObject,
-  buildEngine,
-  renderCallOptions,
-  checkOutputBytes,
-  shapeError,
-  toProtoError,
-  MAX_TEMPLATE_BYTES,
-} from './lib';
+import { parseDataJson, partialsToObject, buildEngine, shapeError, toProtoError } from './lib';
 
 /**
  * Renders exactly like Render, except ANY reference to a variable with no
@@ -21,8 +11,8 @@ import {
  * recognized built-in filter is a structured `parse_error` instead of a
  * silent no-op passthrough. Useful for catching a typo'd variable or filter
  * name (e.g. `{{ user.naem }}`, or `{% if usre.active %}`) that Render would
- * otherwise mask. Same sandboxed `partials` resolution and parse/render/
- * memory/output bounds as Render.
+ * otherwise mask. Same sandboxed `partials` resolution as Render, and no
+ * self-imposed size/render-limit guard — that is the platform's job.
  *
  * @param ax - Platform context: ax.log for logging, ax.secrets for secrets.
  */
@@ -30,12 +20,10 @@ export async function renderStrict(ax: AxiomContext, input: LiquidRenderRequest)
   const out = new LiquidRenderResult();
   try {
     const template = input.getTemplate();
-    checkBytes(template, 'template', MAX_TEMPLATE_BYTES);
     const data = parseDataJson(input.getDataJson());
     const partials = partialsToObject(input.getPartialsMap());
     const engine = buildEngine(partials, { strictVariables: true, strictFilters: true });
-    const output = await engine.parseAndRender(template, data, renderCallOptions());
-    checkOutputBytes(output);
+    const output = await engine.parseAndRender(template, data);
     out.setOk(true);
     out.setOutput(output);
     return out;

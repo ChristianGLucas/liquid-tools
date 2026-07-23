@@ -1,7 +1,6 @@
 import { LiquidTemplateRequest } from '../gen/messages_pb';
 import { validateTemplate } from './validate_template';
 import { ctx, DOCUMENTED_EXAMPLES } from './testkit';
-import { MAX_TEMPLATE_BYTES } from './lib';
 
 function req(template: string): LiquidTemplateRequest {
   const input = new LiquidTemplateRequest();
@@ -41,13 +40,6 @@ describe('ValidateTemplate', () => {
   it('accepts an empty template as valid (renders to empty text)', async () => {
     const result = await validateTemplate(ctx, req(''));
     expect(result.getValid()).toBe(true);
-  });
-
-  it('rejects an oversized template as a structured limit_exceeded error, not a crash', async () => {
-    const huge = 'x'.repeat(MAX_TEMPLATE_BYTES + 100);
-    const result = await validateTemplate(ctx, req(huge));
-    expect(result.getValid()).toBe(false);
-    expect(result.getError()!.getKind()).toBe('limit_exceeded');
   });
 
   it('does not require a data context to validate (no data is ever consulted)', async () => {

@@ -1,7 +1,7 @@
 import { LiquidTemplateRequest, LiquidVariablesResult, LiquidVariableRef } from '../gen/messages_pb';
 import { AxiomContext } from '../gen/axiomContext';
 import { Liquid, Variable } from 'liquidjs';
-import { checkBytes, walkTagsAndFilters, shapeError, toProtoError, SandboxFS, MAX_TEMPLATE_BYTES } from './lib';
+import { walkTagsAndFilters, shapeError, toProtoError, SandboxFS } from './lib';
 
 // A segment is normally a string (`.name`) or number (`[0]`), but LiquidJS
 // also allows a DYNAMIC segment — `{{ arr[idx] }}` — whose index is itself
@@ -44,7 +44,6 @@ export async function extractVariables(ax: AxiomContext, input: LiquidTemplateRe
   const out = new LiquidVariablesResult();
   try {
     const template = input.getTemplate();
-    checkBytes(template, 'template', MAX_TEMPLATE_BYTES);
     // `analyze()` DEFAULTS to following {% include %}/{% render %}/
     // {% layout %} targets to analyze them too (StaticAnalysisOptions.
     // partials defaults to true) — against the engine's configured `fs`,

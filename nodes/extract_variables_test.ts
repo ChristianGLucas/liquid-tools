@@ -1,7 +1,6 @@
 import { LiquidTemplateRequest } from '../gen/messages_pb';
 import { extractVariables } from './extract_variables';
 import { ctx } from './testkit';
-import { MAX_TEMPLATE_BYTES } from './lib';
 
 function req(template: string): LiquidTemplateRequest {
   const input = new LiquidTemplateRequest();
@@ -64,13 +63,6 @@ describe('ExtractVariables', () => {
     expect(result.getOk()).toBe(false);
     expect(result.getError()!.getKind()).toBe('parse_error');
     expect(result.getVariablesList()).toEqual([]);
-  });
-
-  it('rejects an oversized template as a structured limit_exceeded error', async () => {
-    const huge = 'x'.repeat(MAX_TEMPLATE_BYTES + 100);
-    const result = await extractVariables(ctx, req(huge));
-    expect(result.getOk()).toBe(false);
-    expect(result.getError()!.getKind()).toBe('limit_exceeded');
   });
 
   it('never resolves an {% include %} name — it is inventoried as tag usage only', async () => {

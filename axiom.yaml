@@ -1,5 +1,5 @@
 name: christiangeorgelucas/liquid-tools
-version: 0.1.1
+version: 0.1.2
 language: typescript
 description: Composable Axiom nodes for Liquid (Shopify/Jekyll-style) template rendering, wrapping LiquidJS (MIT)
 nodes:
@@ -16,12 +16,11 @@ nodes:
         resolve a name ONLY from this request's own partials map — never
         the filesystem or a URL — so an unresolved name is a structured
         render_error, not a leak of anything outside the request.
-        Rendering is bounded (parse size, render time, memory, and total
-        node count), so a pathological template such as
-        {% for i in (1..100000000000) %} fails fast with a structured
-        limit_exceeded error instead of hanging or exhausting memory.
         Deterministic: the same template + data_json + partials always
-        renders the same output.
+        renders the same output. This node imposes no size/resource
+        ceilings of its own (request size, render cost, and output size
+        are the platform's job); a pathological template is the
+        platform's concern to bound, not this node's.
     - name: RenderStrict
       input: LiquidRenderRequest
       output: LiquidRenderResult
@@ -35,8 +34,8 @@ nodes:
         structured "parse_error" instead of a silent no-op passthrough.
         Useful for catching a typo'd variable or filter name (e.g.
         {{ user.naem }}) that Render would otherwise mask. Same sandboxed
-        partials resolution and parse/render/memory/output bounds as
-        Render.
+        partials resolution as Render, and likewise no self-imposed size/
+        resource ceilings.
     - name: RenderInLayout
       input: LiquidRenderInLayoutRequest
       output: LiquidRenderResult
@@ -51,7 +50,8 @@ nodes:
         applies — standard Liquid semantics. Both templates share the same
         partials map, so a layout can itself {% include %} another
         supplied partial. Same sandboxed resolution (never the filesystem
-        or a URL) and parse/render/memory/output bounds as Render.
+        or a URL) as Render, and likewise no self-imposed size/resource
+        ceilings.
     - name: ExtractVariables
       input: LiquidTemplateRequest
       output: LiquidVariablesResult

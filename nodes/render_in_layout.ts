@@ -1,17 +1,6 @@
 import { LiquidRenderInLayoutRequest, LiquidRenderResult } from '../gen/messages_pb';
 import { AxiomContext } from '../gen/axiomContext';
-import {
-  InputError,
-  checkBytes,
-  parseDataJson,
-  partialsToObject,
-  buildEngine,
-  renderCallOptions,
-  checkOutputBytes,
-  shapeError,
-  toProtoError,
-  MAX_TEMPLATE_BYTES,
-} from './lib';
+import { InputError, parseDataJson, partialsToObject, buildEngine, shapeError, toProtoError } from './lib';
 
 /**
  * Renders `content_template` inside a named layout using standard Liquid
@@ -24,8 +13,8 @@ import {
  * — exactly Liquid's own layout semantics, not a bespoke variant. Both
  * templates share the same `partials` map, so a layout can itself
  * `{% include %}` another supplied partial. Same sandboxed resolution
- * (never the filesystem/a URL) and parse/render/memory/output bounds as
- * Render.
+ * (never the filesystem/a URL) as Render, and no self-imposed size/
+ * render-limit guard — that is the platform's job.
  *
  * @param ax - Platform context: ax.log for logging, ax.secrets for secrets.
  */
@@ -33,12 +22,10 @@ export async function renderInLayout(ax: AxiomContext, input: LiquidRenderInLayo
   const out = new LiquidRenderResult();
   try {
     const contentTemplate = input.getContentTemplate();
-    checkBytes(contentTemplate, 'content_template', MAX_TEMPLATE_BYTES);
     const layoutName = input.getLayoutName();
     if (layoutName.trim() === '') {
       throw new InputError('layout_name must not be empty');
     }
-    checkBytes(layoutName, 'layout_name', 512);
     if (layoutName.includes('"') || /[\r\n]/.test(layoutName)) {
       // layout_name is interpolated into a synthesized `{% layout "..." %}`
       // tag below — reject a quote/newline outright rather than risk it
@@ -59,8 +46,7 @@ export async function renderInLayout(ax: AxiomContext, input: LiquidRenderInLayo
     // this layout" — prepending it lets a caller supply an ordinary
     // block-tagged content template without needing to know that syntax.
     const wrapped = `{% layout "${layoutName}" %}${contentTemplate}`;
-    const output = await engine.parseAndRender(wrapped, data, renderCallOptions());
-    checkOutputBytes(output);
+    const output = await engine.parseAndRender(wrapped, data);
     out.setOk(true);
     out.setOutput(output);
     return out;

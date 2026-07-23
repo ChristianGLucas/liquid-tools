@@ -1,7 +1,7 @@
 import { LiquidTemplateRequest, LiquidValidateResult } from '../gen/messages_pb';
 import { AxiomContext } from '../gen/axiomContext';
 import { Liquid } from 'liquidjs';
-import { checkBytes, shapeError, toProtoError, SandboxFS, MAX_TEMPLATE_BYTES } from './lib';
+import { shapeError, toProtoError, SandboxFS } from './lib';
 
 /**
  * Checks whether a string is syntactically valid Liquid, without rendering
@@ -18,7 +18,6 @@ export async function validateTemplate(ax: AxiomContext, input: LiquidTemplateRe
   const out = new LiquidValidateResult();
   try {
     const template = input.getTemplate();
-    checkBytes(template, 'template', MAX_TEMPLATE_BYTES);
     // parse() alone never follows {% include %}/{% render %}/{% layout %}
     // targets (only render()/analyze() do), so this is already safe with no
     // fs configured — the always-empty SandboxFS is defense in depth in

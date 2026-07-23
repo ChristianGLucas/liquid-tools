@@ -20,12 +20,13 @@ syntax = "proto3";
 package christiangeorgelucas.liquid_tools;
 
 // A single Liquid render error: what went wrong and where. `kind` is one of
-// "invalid_input" (oversized/malformed request), "parse_error" (template
-// syntax), "render_error" (evaluation failure, e.g. a caller-supplied
-// {% include %}/{% layout %} name with no matching partial), "undefined"
-// (strict mode found an undefined variable or filter), or "limit_exceeded"
-// (a bounded parse/render/output guard tripped). `line`/`col` are 1-based
-// and 0 when the error has no template position (e.g. invalid_input).
+// "invalid_input" (malformed request, e.g. invalid data_json), "parse_error"
+// (template syntax), "render_error" (evaluation failure, e.g. a
+// caller-supplied {% include %}/{% layout %} name with no matching partial),
+// or "undefined" (strict mode found an undefined variable or filter).
+// `line`/`col` are 1-based and 0 when the error has no template position
+// (e.g. invalid_input). This package imposes no size/resource ceilings of
+// its own (that is the platform's job), so there is no "limit_exceeded" kind.
 message LiquidError {
   string kind = 1;
   string message = 2;

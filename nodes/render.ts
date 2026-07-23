@@ -1,16 +1,6 @@
 import { LiquidRenderRequest, LiquidRenderResult } from '../gen/messages_pb';
 import { AxiomContext } from '../gen/axiomContext';
-import {
-  checkBytes,
-  parseDataJson,
-  partialsToObject,
-  buildEngine,
-  renderCallOptions,
-  checkOutputBytes,
-  shapeError,
-  toProtoError,
-  MAX_TEMPLATE_BYTES,
-} from './lib';
+import { parseDataJson, partialsToObject, buildEngine, shapeError, toProtoError } from './lib';
 
 /**
  * Renders a Liquid template (Shopify/Jekyll-style `{{ variables }}`,
@@ -21,13 +11,10 @@ import {
  * either. `{% include %}`/`{% render %}` resolve a name ONLY from this
  * request's own `partials` map — never the filesystem or a URL — so an
  * unresolved name comes back as a structured render_error, not a leak of
- * anything outside the request. Rendering is bounded (parse size, render
- * time, memory, and total node count), so a pathological template such as
- * `{% for i in (1..100000000000) %}` fails fast with a structured
- * limit_exceeded error instead of hanging or exhausting memory — the bound
- * lives in the template text itself, not the data, so it can't be sidestepped
- * by a small data_json. Deterministic: the same template + data_json +
- * partials always renders the same output.
+ * anything outside the request. Deterministic: the same template + data_json
+ * + partials always renders the same output. Request/response size and
+ * pathological-input (bomb/DoS) concerns are the platform's job, not this
+ * node's — there is no self-imposed size or render-limit guard here.
  *
  * @param ax - Platform context: ax.log for logging, ax.secrets for secrets.
  */
@@ -35,12 +22,10 @@ export async function render(ax: AxiomContext, input: LiquidRenderRequest): Prom
   const out = new LiquidRenderResult();
   try {
     const template = input.getTemplate();
-    checkBytes(template, 'template', MAX_TEMPLATE_BYTES);
     const data = parseDataJson(input.getDataJson());
     const partials = partialsToObject(input.getPartialsMap());
     const engine = buildEngine(partials, { strictVariables: false, strictFilters: false });
-    const output = await engine.parseAndRender(template, data, renderCallOptions());
-    checkOutputBytes(output);
+    const output = await engine.parseAndRender(template, data);
     out.setOk(true);
     out.setOutput(output);
     return out;
